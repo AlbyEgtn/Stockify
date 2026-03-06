@@ -60,7 +60,7 @@ Route::middleware('auth')
             ->name('settings.update');
 
         Route::get('/reports/mutation',
-            [AdminProductController::class, 'stockMutationReport']
+            [StockReportController::class, 'mutation']
         )->name('reports.mutation');
 
         Route::get('/products/export', 

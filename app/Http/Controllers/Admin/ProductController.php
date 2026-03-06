@@ -160,33 +160,38 @@ class ProductController extends Controller
     {
         $categories = Category::all();
 
-        $query = StockTransaction::with(['product.category','product.supplier'])
-                    ->latest();
+        $query = StockTransaction::with(['product.category','user']);
 
+        // Filter tanggal
         if ($request->start_date) {
-            $query->whereDate('date', '>=', $request->start_date);
+            $query->whereDate('created_at', '>=', $request->start_date);
         }
 
         if ($request->end_date) {
-            $query->whereDate('date', '<=', $request->end_date);
+            $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        if ($request->type) {
-            $query->where('type', $request->type);
-        }
-
+        // Filter kategori
         if ($request->category_id) {
-            $query->whereHas('product', function ($q) use ($request) {
+            $query->whereHas('product', function($q) use ($request) {
                 $q->where('category_id', $request->category_id);
             });
         }
 
-        $transactions = $query->paginate(10);
+        // Filter tipe
+        if ($request->type) {
+            $query->where('type', $request->type);
+        }
+
+        // Pagination (cukup sekali!)
+        $transactions = $query->latest()->paginate(10);
         $transactions->appends($request->query());
 
+        // Summary berdasarkan filter aktif
         $totalIn = (clone $query)->where('type','IN')->sum('quantity');
         $totalOut = (clone $query)->where('type','OUT')->sum('quantity');
 
+        // Ambil semua produk untuk analisis stok
         $allProducts = Product::with('category')->get();
 
         $criticalProducts = $allProducts->filter(fn($p) =>
@@ -220,7 +225,7 @@ class ProductController extends Controller
 
     public function stockHistory(Request $request)
     {
-        $query = StockTransaction::with(['product','user'])
+        $query = StockTransaction::with(['product.category','user'])
                     ->latest();
 
         if ($request->status) {
@@ -235,12 +240,23 @@ class ProductController extends Controller
             $query->where('product_id', $request->product);
         }
 
+        if ($request->category_id) {
+            $query->whereHas('product', function($q) use ($request) {
+                $q->where('category_id', $request->category_id);
+            });
+        }
+
         $transactions = $query->paginate(10);
         $transactions->appends($request->query());
 
         $products = Product::all();
+        $categories = Category::all(); // ← TAMBAHKAN INI
 
-        return view('admin.stocks.index', compact('transactions','products'));
+        return view('admin.reports.transactions', compact(
+            'transactions',
+            'products',
+            'categories'
+        ));
     }
 
 
@@ -366,4 +382,5 @@ class ProductController extends Controller
             'produk-export-' . now()->format('Y-m-d') . '.xlsx'
         );
     }
+    
 }
